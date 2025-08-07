@@ -81,13 +81,16 @@ func NewModel() Model {
 	
 	// Create list with custom delegate
 	l := list.New(items, ticketDelegate{}, 80, 24)
-	l.Title = fmt.Sprintf("GoTickets - Ticket Manager (Всего тикетов: %d)", len(storage.Tickets))
+	l.Title = fmt.Sprintf("%s\nВсего тикетов: %d", 
+		lipgloss.NewStyle().Bold(true).Render("GoTickets - Ticket Manager"), 
+		len(storage.Tickets))
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(false) // We'll handle search manually
 	l.Styles.Title = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("62")).
-		Bold(true).
-		Padding(1, 2)
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("62")).
+		Padding(0, 1).
+		Align(lipgloss.Center)
 	
 	// Set status bar message
 	l.AdditionalShortHelpKeys = func() []key.Binding {
@@ -130,7 +133,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.list.SetWidth(msg.Width)
-		m.list.SetHeight(msg.Height - 3) // Leave room for status
+		m.list.SetHeight(msg.Height - 10) // Leave room for title with border and status
 		return m, nil
 		
 	case tea.KeyMsg:
@@ -244,7 +247,9 @@ func (m *Model) refreshList() {
 		items[i] = ticket
 	}
 	m.list.SetItems(items)
-	m.list.Title = fmt.Sprintf("GoTickets - Ticket Manager (Всего тикетов: %d)", len(m.storage.Tickets))
+	m.list.Title = fmt.Sprintf("%s\nВсего тикетов: %d", 
+		lipgloss.NewStyle().Bold(true).Render("GoTickets - Ticket Manager"), 
+		len(m.storage.Tickets))
 }
 
 func (m *Model) filterList(query string) {
@@ -259,7 +264,9 @@ func (m *Model) filterList(query string) {
 		items[i] = ticket
 	}
 	m.list.SetItems(items)
-	m.list.Title = fmt.Sprintf("GoTickets - Ticket Manager (Показано: %d из %d)", len(filteredTickets), len(m.storage.Tickets))
+	m.list.Title = fmt.Sprintf("%s\nПоказано: %d из %d", 
+		lipgloss.NewStyle().Bold(true).Render("GoTickets - Ticket Manager"), 
+		len(filteredTickets), len(m.storage.Tickets))
 }
 
 func openBrowser(url string) func() error {
