@@ -8,6 +8,13 @@ import (
 )
 
 func TestNewModel(t *testing.T) {
+	// Set up mock file system
+	tempDir := t.TempDir()
+	mockFS := NewMockFileSystem(tempDir)
+	originalFS := fileSystem
+	fileSystem = mockFS
+	defer func() { fileSystem = originalFS }()
+	
 	model := NewModel()
 	
 	if model.storage == nil {
@@ -31,6 +38,13 @@ func TestNewModel(t *testing.T) {
 }
 
 func TestModel_Init(t *testing.T) {
+	// Set up mock file system
+	tempDir := t.TempDir()
+	mockFS := NewMockFileSystem(tempDir)
+	originalFS := fileSystem
+	fileSystem = mockFS
+	defer func() { fileSystem = originalFS }()
+	
 	model := NewModel()
 	cmd := model.Init()
 	
@@ -41,6 +55,13 @@ func TestModel_Init(t *testing.T) {
 }
 
 func TestModel_UpdateList_Navigation(t *testing.T) {
+	// Set up mock file system
+	tempDir := t.TempDir()
+	mockFS := NewMockFileSystem(tempDir)
+	originalFS := fileSystem
+	fileSystem = mockFS
+	defer func() { fileSystem = originalFS }()
+	
 	// Create model with some test tickets
 	model := NewModel()
 	// Clear existing tickets first
@@ -65,6 +86,13 @@ func TestModel_UpdateList_Navigation(t *testing.T) {
 }
 
 func TestModel_UpdateList_ModeChanges(t *testing.T) {
+	// Set up mock file system
+	tempDir := t.TempDir()
+	mockFS := NewMockFileSystem(tempDir)
+	originalFS := fileSystem
+	fileSystem = mockFS
+	defer func() { fileSystem = originalFS }()
+	
 	model := NewModel()
 	
 	// Test add mode
@@ -117,6 +145,13 @@ func TestModel_UpdateList_ModeChanges(t *testing.T) {
 }
 
 func TestModel_UpdateAddURL(t *testing.T) {
+	// Set up mock file system
+	tempDir := t.TempDir()
+	mockFS := NewMockFileSystem(tempDir)
+	originalFS := fileSystem
+	fileSystem = mockFS
+	defer func() { fileSystem = originalFS }()
+	
 	model := NewModel()
 	model.viewMode = ViewAddURL
 	model.textInput.SetValue("https://example.com")
@@ -164,6 +199,13 @@ func TestModel_UpdateAddURL(t *testing.T) {
 }
 
 func TestModel_UpdateAddTitle(t *testing.T) {
+	// Set up mock file system
+	tempDir := t.TempDir()
+	mockFS := NewMockFileSystem(tempDir)
+	originalFS := fileSystem
+	fileSystem = mockFS
+	defer func() { fileSystem = originalFS }()
+	
 	model := NewModel()
 	model.viewMode = ViewAddTitle
 	model.tempURL = "https://example.com"
@@ -218,6 +260,13 @@ func TestModel_UpdateAddTitle(t *testing.T) {
 }
 
 func TestModel_UpdateSearch(t *testing.T) {
+	// Set up mock file system
+	tempDir := t.TempDir()
+	mockFS := NewMockFileSystem(tempDir)
+	originalFS := fileSystem
+	fileSystem = mockFS
+	defer func() { fileSystem = originalFS }()
+	
 	// Create a properly initialized model
 	model := NewModel()
 	// Clear existing tickets first
@@ -264,6 +313,13 @@ func TestModel_UpdateSearch(t *testing.T) {
 }
 
 func TestModel_UpdateConfirmDelete(t *testing.T) {
+	// Set up mock file system
+	tempDir := t.TempDir()
+	mockFS := NewMockFileSystem(tempDir)
+	originalFS := fileSystem
+	fileSystem = mockFS
+	defer func() { fileSystem = originalFS }()
+	
 	// Create a properly initialized model
 	model := NewModel()
 	// Clear existing tickets first
@@ -343,6 +399,13 @@ func TestViewModes(t *testing.T) {
 }
 
 func TestModel_View(t *testing.T) {
+	// Set up mock file system
+	tempDir := t.TempDir()
+	mockFS := NewMockFileSystem(tempDir)
+	originalFS := fileSystem
+	fileSystem = mockFS
+	defer func() { fileSystem = originalFS }()
+	
 	model := NewModel()
 	model.storage.AddTicket("Test Ticket", "https://example.com")
 	model.refreshList()
@@ -364,6 +427,13 @@ func TestModel_View(t *testing.T) {
 }
 
 func TestModel_UpdateImport(t *testing.T) {
+	// Set up mock file system
+	tempDir := t.TempDir()
+	mockFS := NewMockFileSystem(tempDir)
+	originalFS := fileSystem
+	fileSystem = mockFS
+	defer func() { fileSystem = originalFS }()
+	
 	model := NewModel()
 	model.viewMode = ViewImport
 	model.textInput.SetValue("/path/to/test.txt")
@@ -410,6 +480,13 @@ func TestModel_UpdateImport(t *testing.T) {
 }
 
 func TestModel_UpdateImportResult(t *testing.T) {
+	// Set up mock file system
+	tempDir := t.TempDir()
+	mockFS := NewMockFileSystem(tempDir)
+	originalFS := fileSystem
+	fileSystem = mockFS
+	defer func() { fileSystem = originalFS }()
+	
 	model := NewModel()
 	model.viewMode = ViewImportResult
 	model.importResult = &ImportResult{Added: 5, Duplicates: 2, Errors: 1}
@@ -445,6 +522,13 @@ func TestModel_UpdateImportResult(t *testing.T) {
 }
 
 func TestModel_ListComponent(t *testing.T) {
+	// Set up mock file system
+	tempDir := t.TempDir()
+	mockFS := NewMockFileSystem(tempDir)
+	originalFS := fileSystem
+	fileSystem = mockFS
+	defer func() { fileSystem = originalFS }()
+	
 	// Test that the list component works correctly
 	model := NewModel()
 	// Clear existing tickets first
@@ -469,6 +553,13 @@ func TestModel_ListComponent(t *testing.T) {
 }
 
 func TestModel_ListNavigation(t *testing.T) {
+	// Set up mock file system
+	tempDir := t.TempDir()
+	mockFS := NewMockFileSystem(tempDir)
+	originalFS := fileSystem
+	fileSystem = mockFS
+	defer func() { fileSystem = originalFS }()
+	
 	model := NewModel()
 	// Clear existing tickets first
 	model.storage.Tickets = []Ticket{}
@@ -493,6 +584,13 @@ func TestModel_ListNavigation(t *testing.T) {
 }
 
 func TestModel_ListWithEmptyList(t *testing.T) {
+	// Set up mock file system
+	tempDir := t.TempDir()
+	mockFS := NewMockFileSystem(tempDir)
+	originalFS := fileSystem
+	fileSystem = mockFS
+	defer func() { fileSystem = originalFS }()
+	
 	model := NewModel()
 	// Clear existing tickets first
 	model.storage.Tickets = []Ticket{}
@@ -511,6 +609,13 @@ func TestModel_ListWithEmptyList(t *testing.T) {
 }
 
 func TestModel_UpdateList_EnterCopiesURL(t *testing.T) {
+	// Set up mock file system
+	tempDir := t.TempDir()
+	mockFS := NewMockFileSystem(tempDir)
+	originalFS := fileSystem
+	fileSystem = mockFS
+	defer func() { fileSystem = originalFS }()
+	
 	model := NewModel()
 	// Clear existing tickets first
 	model.storage.Tickets = []Ticket{}

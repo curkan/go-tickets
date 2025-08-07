@@ -11,6 +11,51 @@ import (
 	"time"
 )
 
+// FileSystem interface for mocking file operations
+type FileSystem interface {
+	UserHomeDir() (string, error)
+	MkdirAll(path string, perm os.FileMode) error
+	ReadFile(filename string) ([]byte, error)
+	WriteFile(filename string, data []byte, perm os.FileMode) error
+	ReadDir(dirname string) ([]os.DirEntry, error)
+	Stat(name string) (os.FileInfo, error)
+	Open(name string) (*os.File, error)
+}
+
+// RealFileSystem implements FileSystem using real file operations
+type RealFileSystem struct{}
+
+func (fs *RealFileSystem) UserHomeDir() (string, error) {
+	return os.UserHomeDir()
+}
+
+func (fs *RealFileSystem) MkdirAll(path string, perm os.FileMode) error {
+	return os.MkdirAll(path, perm)
+}
+
+func (fs *RealFileSystem) ReadFile(filename string) ([]byte, error) {
+	return os.ReadFile(filename)
+}
+
+func (fs *RealFileSystem) WriteFile(filename string, data []byte, perm os.FileMode) error {
+	return os.WriteFile(filename, data, perm)
+}
+
+func (fs *RealFileSystem) ReadDir(dirname string) ([]os.DirEntry, error) {
+	return os.ReadDir(dirname)
+}
+
+func (fs *RealFileSystem) Stat(name string) (os.FileInfo, error) {
+	return os.Stat(name)
+}
+
+func (fs *RealFileSystem) Open(name string) (*os.File, error) {
+	return os.Open(name)
+}
+
+// Global variable for file system (can be mocked in tests)
+var fileSystem FileSystem = &RealFileSystem{}
+
 type Ticket struct {
 	ID        int       `json:"id"`
 	Title     string    `json:"title"`
@@ -87,7 +132,47 @@ type ImportResult struct {
 	ErrorLines []string
 }
 
+// createBackup creates a backup of the current tickets.json file
+func createBackup() error {
+	homeDir, err := fileSystem.UserHomeDir()
+	if err != nil {
+		return err
+	}
+	
+	dataDir := filepath.Join(homeDir, ".gotickets")
+	filePath := filepath.Join(dataDir, "tickets.json")
+	
+	// Check if file exists
+	if _, err := fileSystem.Stat(filePath); os.IsNotExist(err) {
+		// No file to backup
+		return nil
+	}
+	
+	// Create backup filename with timestamp
+	timestamp := time.Now().Format("2006-01-02_15-04-05")
+	backupPath := filepath.Join(dataDir, fmt.Sprintf("tickets_backup_%s.json", timestamp))
+	
+	// Copy file to backup
+	data, err := fileSystem.ReadFile(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to read tickets file for backup: %v", err)
+	}
+	
+	err = fileSystem.WriteFile(backupPath, data, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to create backup: %v", err)
+	}
+	
+	return nil
+}
+
 func (ts *TicketStorage) AddTicket(title, url string) {
+	// Create backup before adding ticket
+	if err := createBackup(); err != nil {
+		// Log error but continue with operation
+		fmt.Printf("Warning: failed to create backup: %v\n", err)
+	}
+	
 	ticket := Ticket{
 		ID:        ts.NextID,
 		Title:     title,
@@ -117,6 +202,12 @@ func (ts *TicketStorage) Search(query string) []Ticket {
 }
 
 func (ts *TicketStorage) DeleteTicket(id int) bool {
+	// Create backup before deleting ticket
+	if err := createBackup(); err != nil {
+		// Log error but continue with operation
+		fmt.Printf("Warning: failed to create backup: %v\n", err)
+	}
+	
 	for i, ticket := range ts.Tickets {
 		if ticket.ID == id {
 			ts.Tickets = append(ts.Tickets[:i], ts.Tickets[i+1:]...)
@@ -136,11 +227,17 @@ func (ts *TicketStorage) HasTicketWithURL(url string) bool {
 }
 
 func (ts *TicketStorage) ImportFromFile(filePath string) (*ImportResult, error) {
+	// Create backup before importing
+	if err := createBackup(); err != nil {
+		// Log error but continue with operation
+		fmt.Printf("Warning: failed to create backup: %v\n", err)
+	}
+	
 	result := &ImportResult{
 		ErrorLines: make([]string, 0),
 	}
 	
-	file, err := os.Open(filePath)
+	file, err := fileSystem.Open(filePath)
 	if err != nil {
 		return result, fmt.Errorf("не удалось открыть файл: %v", err)
 	}
@@ -194,13 +291,13 @@ func (ts *TicketStorage) ImportFromFile(filePath string) (*ImportResult, error) 
 }
 
 func (ts *TicketStorage) Save() error {
-	homeDir, err := os.UserHomeDir()
+	homeDir, err := fileSystem.UserHomeDir()
 	if err != nil {
 		return err
 	}
 	
 	dataDir := filepath.Join(homeDir, ".gotickets")
-	if err := os.MkdirAll(dataDir, 0755); err != nil {
+	if err := fileSystem.MkdirAll(dataDir, 0755); err != nil {
 		return err
 	}
 	
@@ -210,17 +307,22 @@ func (ts *TicketStorage) Save() error {
 		return err
 	}
 	
-	return os.WriteFile(filePath, data, 0644)
+	return fileSystem.WriteFile(filePath, data, 0644)
 }
 
 func LoadTickets() (*TicketStorage, error) {
-	homeDir, err := os.UserHomeDir()
+	homeDir, err := fileSystem.UserHomeDir()
 	if err != nil {
 		return &TicketStorage{NextID: 1}, nil
 	}
 	
 	filePath := filepath.Join(homeDir, ".gotickets", "tickets.json")
-	data, err := os.ReadFile(filePath)
+	return LoadTicketsFromPath(filePath)
+}
+
+// LoadTicketsFromPath loads tickets from a specific file path (useful for testing)
+func LoadTicketsFromPath(filePath string) (*TicketStorage, error) {
+	data, err := fileSystem.ReadFile(filePath)
 	if err != nil {
 		return &TicketStorage{NextID: 1}, nil
 	}
@@ -235,4 +337,66 @@ func LoadTickets() (*TicketStorage, error) {
 	}
 	
 	return &storage, nil
+}
+
+// listBackups returns a list of available backup files
+func listBackups() ([]string, error) {
+	homeDir, err := fileSystem.UserHomeDir()
+	if err != nil {
+		return nil, err
+	}
+	
+	dataDir := filepath.Join(homeDir, ".gotickets")
+	
+	// Read directory contents
+	entries, err := fileSystem.ReadDir(dataDir)
+	if err != nil {
+		return nil, err
+	}
+	
+	var backups []string
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasPrefix(entry.Name(), "tickets_backup_") && strings.HasSuffix(entry.Name(), ".json") {
+			backups = append(backups, entry.Name())
+		}
+	}
+	
+	return backups, nil
+}
+
+// restoreFromBackup restores tickets from a backup file
+func restoreFromBackup(backupName string) error {
+	homeDir, err := fileSystem.UserHomeDir()
+	if err != nil {
+		return err
+	}
+	
+	dataDir := filepath.Join(homeDir, ".gotickets")
+	backupPath := filepath.Join(dataDir, backupName)
+	filePath := filepath.Join(dataDir, "tickets.json")
+	
+	// Check if backup file exists
+	if _, err := fileSystem.Stat(backupPath); os.IsNotExist(err) {
+		return fmt.Errorf("backup file not found: %s", backupName)
+	}
+	
+	// Read backup file
+	data, err := fileSystem.ReadFile(backupPath)
+	if err != nil {
+		return fmt.Errorf("failed to read backup file: %v", err)
+	}
+	
+	// Validate JSON
+	var storage TicketStorage
+	if err := json.Unmarshal(data, &storage); err != nil {
+		return fmt.Errorf("backup file is corrupted: %v", err)
+	}
+	
+	// Restore the file
+	err = fileSystem.WriteFile(filePath, data, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to restore from backup: %v", err)
+	}
+	
+	return nil
 }

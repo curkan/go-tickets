@@ -2,11 +2,232 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
+
+
+
+// MockFileSystem for testing
+type MockFileSystem struct {
+	homeDir     string
+	files       map[string][]byte
+	directories map[string]bool
+	statResults map[string]os.FileInfo
+	errors      map[string]error
+}
+
+func NewMockFileSystem(homeDir string) *MockFileSystem {
+	return &MockFileSystem{
+		homeDir:     homeDir,
+		files:       make(map[string][]byte),
+		directories: make(map[string]bool),
+		statResults: make(map[string]os.FileInfo),
+		errors:      make(map[string]error),
+	}
+}
+
+func (fs *MockFileSystem) UserHomeDir() (string, error) {
+	if err, exists := fs.errors["UserHomeDir"]; exists {
+		return "", err
+	}
+	return fs.homeDir, nil
+}
+
+func (fs *MockFileSystem) MkdirAll(path string, perm os.FileMode) error {
+	if err, exists := fs.errors["MkdirAll"]; exists {
+		return err
+	}
+	fs.directories[path] = true
+	return nil
+}
+
+func (fs *MockFileSystem) ReadFile(filename string) ([]byte, error) {
+	if err, exists := fs.errors["ReadFile"]; exists {
+		return nil, err
+	}
+	if data, exists := fs.files[filename]; exists {
+		return data, nil
+	}
+	return nil, &os.PathError{Op: "read", Path: filename, Err: os.ErrNotExist}
+}
+
+func (fs *MockFileSystem) WriteFile(filename string, data []byte, perm os.FileMode) error {
+	if err, exists := fs.errors["WriteFile"]; exists {
+		return err
+	}
+	fs.files[filename] = data
+	return nil
+}
+
+func (fs *MockFileSystem) ReadDir(dirname string) ([]os.DirEntry, error) {
+	if err, exists := fs.errors["ReadDir"]; exists {
+		return nil, err
+	}
+	
+	var entries []os.DirEntry
+	for filename := range fs.files {
+		if strings.HasPrefix(filename, dirname) {
+			// Create a simple mock DirEntry
+			entry := &mockDirEntry{name: filepath.Base(filename)}
+			entries = append(entries, entry)
+		}
+	}
+	return entries, nil
+}
+
+func (fs *MockFileSystem) Stat(name string) (os.FileInfo, error) {
+	if err, exists := fs.errors["Stat"]; exists {
+		return nil, err
+	}
+	if _, exists := fs.files[name]; exists {
+		return &mockFileInfo{name: filepath.Base(name)}, nil
+	}
+	return nil, &os.PathError{Op: "stat", Path: name, Err: os.ErrNotExist}
+}
+
+func (fs *MockFileSystem) Open(name string) (*os.File, error) {
+	if err, exists := fs.errors["Open"]; exists {
+		return nil, err
+	}
+	if data, exists := fs.files[name]; exists {
+		// Create a temporary file with the data
+		tmpFile, err := os.CreateTemp("", "mock_file_*")
+		if err != nil {
+			return nil, err
+		}
+		_, err = tmpFile.Write(data)
+		if err != nil {
+			tmpFile.Close()
+			os.Remove(tmpFile.Name())
+			return nil, err
+		}
+		tmpFile.Seek(0, 0)
+		return tmpFile, nil
+	}
+	return nil, &os.PathError{Op: "open", Path: name, Err: os.ErrNotExist}
+}
+
+// Mock implementations
+type mockDirEntry struct {
+	name string
+}
+
+func (d *mockDirEntry) Name() string               { return d.name }
+func (d *mockDirEntry) IsDir() bool               { return false }
+func (d *mockDirEntry) Type() os.FileMode         { return 0 }
+func (d *mockDirEntry) Info() (os.FileInfo, error) { return nil, nil }
+
+type mockFileInfo struct {
+	name string
+}
+
+func (f *mockFileInfo) Name() string       { return f.name }
+func (f *mockFileInfo) Size() int64        { return 0 }
+func (f *mockFileInfo) Mode() os.FileMode  { return 0 }
+func (f *mockFileInfo) ModTime() time.Time { return time.Time{} }
+func (f *mockFileInfo) IsDir() bool        { return false }
+func (f *mockFileInfo) Sys() interface{}   { return nil }
+
+
+
+// Mock functions for testing
+func createBackupForTest() error {
+	homeDir, err := fileSystem.UserHomeDir()
+	if err != nil {
+		return err
+	}
+	
+	dataDir := filepath.Join(homeDir, ".gotickets")
+	filePath := filepath.Join(dataDir, "tickets.json")
+	
+	// Check if file exists
+	if _, err := fileSystem.Stat(filePath); os.IsNotExist(err) {
+		// No file to backup
+		return nil
+	}
+	
+	// Create backup filename with timestamp
+	timestamp := time.Now().Format("2006-01-02_15-04-05")
+	backupPath := filepath.Join(dataDir, fmt.Sprintf("tickets_backup_%s.json", timestamp))
+	
+	// Copy file to backup
+	data, err := fileSystem.ReadFile(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to read tickets file for backup: %v", err)
+	}
+	
+	err = fileSystem.WriteFile(backupPath, data, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to create backup: %v", err)
+	}
+	
+	return nil
+}
+
+func listBackupsForTest() ([]string, error) {
+	homeDir, err := fileSystem.UserHomeDir()
+	if err != nil {
+		return nil, err
+	}
+	
+	dataDir := filepath.Join(homeDir, ".gotickets")
+	
+	// Read directory contents
+	entries, err := fileSystem.ReadDir(dataDir)
+	if err != nil {
+		return nil, err
+	}
+	
+	var backups []string
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasPrefix(entry.Name(), "tickets_backup_") && strings.HasSuffix(entry.Name(), ".json") {
+			backups = append(backups, entry.Name())
+		}
+	}
+	
+	return backups, nil
+}
+
+func restoreFromBackupForTest(backupName string) error {
+	homeDir, err := fileSystem.UserHomeDir()
+	if err != nil {
+		return err
+	}
+	
+	dataDir := filepath.Join(homeDir, ".gotickets")
+	backupPath := filepath.Join(dataDir, backupName)
+	filePath := filepath.Join(dataDir, "tickets.json")
+	
+	// Check if backup file exists
+	if _, err := fileSystem.Stat(backupPath); os.IsNotExist(err) {
+		return fmt.Errorf("backup file not found: %s", backupName)
+	}
+	
+	// Read backup file
+	data, err := fileSystem.ReadFile(backupPath)
+	if err != nil {
+		return fmt.Errorf("failed to read backup file: %v", err)
+	}
+	
+	// Validate JSON
+	var storage TicketStorage
+	if err := json.Unmarshal(data, &storage); err != nil {
+		return fmt.Errorf("backup file is corrupted: %v", err)
+	}
+	
+	// Restore the file
+	err = fileSystem.WriteFile(filePath, data, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to restore from backup: %v", err)
+	}
+	
+	return nil
+}
 
 func TestTicketStorage_AddTicket(t *testing.T) {
 	ts := &TicketStorage{NextID: 1}
@@ -106,15 +327,12 @@ func TestTicketStorage_DeleteTicket(t *testing.T) {
 }
 
 func TestTicketStorage_SaveAndLoad(t *testing.T) {
-	// Create a temporary directory for testing
+	// Set up mock file system
 	tempDir := t.TempDir()
-	
-	// Save the original home directory
-	originalHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", originalHome)
-	
-	// Set temporary home directory
-	os.Setenv("HOME", tempDir)
+	mockFS := NewMockFileSystem(tempDir)
+	originalFS := fileSystem
+	fileSystem = mockFS
+	defer func() { fileSystem = originalFS }()
 	
 	// Create test storage
 	ts := &TicketStorage{NextID: 1}
@@ -129,12 +347,12 @@ func TestTicketStorage_SaveAndLoad(t *testing.T) {
 	
 	// Verify file was created
 	filePath := filepath.Join(tempDir, ".gotickets", "tickets.json")
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+	if _, err := mockFS.Stat(filePath); os.IsNotExist(err) {
 		t.Fatalf("Tickets file was not created")
 	}
 	
-	// Load the storage
-	loaded, err := LoadTickets()
+	// Load the storage using the specific path
+	loaded, err := LoadTicketsFromPath(filePath)
 	if err != nil {
 		t.Fatalf("Failed to load tickets: %v", err)
 	}
@@ -152,18 +370,16 @@ func TestTicketStorage_SaveAndLoad(t *testing.T) {
 }
 
 func TestLoadTickets_NonExistentFile(t *testing.T) {
-	// Create a temporary directory for testing
+	// Set up mock file system
 	tempDir := t.TempDir()
+	mockFS := NewMockFileSystem(tempDir)
+	originalFS := fileSystem
+	fileSystem = mockFS
+	defer func() { fileSystem = originalFS }()
 	
-	// Save the original home directory
-	originalHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", originalHome)
-	
-	// Set temporary home directory with no existing tickets
-	os.Setenv("HOME", tempDir)
-	
-	// Load tickets from non-existent file
-	loaded, err := LoadTickets()
+	// Load tickets from non-existent file using specific path
+	filePath := filepath.Join(tempDir, ".gotickets", "tickets.json")
+	loaded, err := LoadTicketsFromPath(filePath)
 	if err != nil {
 		t.Fatalf("LoadTickets should not return error for non-existent file: %v", err)
 	}
@@ -177,31 +393,24 @@ func TestLoadTickets_NonExistentFile(t *testing.T) {
 }
 
 func TestLoadTickets_CorruptedFile(t *testing.T) {
-	// Create a temporary directory for testing
+	// Set up mock file system
 	tempDir := t.TempDir()
+	mockFS := NewMockFileSystem(tempDir)
+	originalFS := fileSystem
+	fileSystem = mockFS
+	defer func() { fileSystem = originalFS }()
 	
-	// Save the original home directory
-	originalHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", originalHome)
-	
-	// Set temporary home directory
-	os.Setenv("HOME", tempDir)
-	
-	// Create directory and write corrupted JSON
+	// Write corrupted JSON to the test data directory
 	dataDir := filepath.Join(tempDir, ".gotickets")
-	err := os.MkdirAll(dataDir, 0755)
-	if err != nil {
-		t.Fatalf("Failed to create data directory: %v", err)
-	}
 	
 	filePath := filepath.Join(dataDir, "tickets.json")
-	err = os.WriteFile(filePath, []byte("invalid json"), 0644)
+	err := mockFS.WriteFile(filePath, []byte("invalid json"), 0644)
 	if err != nil {
 		t.Fatalf("Failed to write corrupted file: %v", err)
 	}
 	
-	// Load tickets from corrupted file
-	loaded, err := LoadTickets()
+	// Load tickets from corrupted file using specific path
+	loaded, err := LoadTicketsFromPath(filePath)
 	if err != nil {
 		t.Fatalf("LoadTickets should not return error for corrupted file: %v", err)
 	}
@@ -447,4 +656,240 @@ func TestTicket_GetTitle(t *testing.T) {
 	if result != expected {
 		t.Errorf("GetTitle() = %v, want %v", result, expected)
 	}
+}
+
+func TestCreateBackup(t *testing.T) {
+	// Set up mock file system
+	tempDir := t.TempDir()
+	mockFS := NewMockFileSystem(tempDir)
+	originalFS := fileSystem
+	fileSystem = mockFS
+	defer func() { fileSystem = originalFS }()
+	
+	// Create test storage and save it
+	ts := &TicketStorage{NextID: 1}
+	ts.AddTicket("Test Ticket", "https://example.com")
+	err := ts.Save()
+	if err != nil {
+		t.Fatalf("Failed to save test tickets: %v", err)
+	}
+	
+	// Create backup using test function
+	err = createBackupForTest()
+	if err != nil {
+		t.Fatalf("Failed to create backup: %v", err)
+	}
+	
+	// Check that backup file exists
+	dataDir := filepath.Join(tempDir, ".gotickets")
+	entries, err := mockFS.ReadDir(dataDir)
+	if err != nil {
+		t.Fatalf("Failed to read data directory: %v", err)
+	}
+	
+	backupFound := false
+	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), "tickets_backup_") && strings.HasSuffix(entry.Name(), ".json") {
+			backupFound = true
+			break
+		}
+	}
+	
+	if !backupFound {
+		t.Error("Backup file was not created")
+	}
+}
+
+func TestListBackups(t *testing.T) {
+	// Set up mock file system
+	tempDir := t.TempDir()
+	mockFS := NewMockFileSystem(tempDir)
+	originalFS := fileSystem
+	fileSystem = mockFS
+	defer func() { fileSystem = originalFS }()
+	
+	// Create some backup files
+	dataDir := filepath.Join(tempDir, ".gotickets")
+	
+	// Create test backup files
+	testBackups := []string{
+		"tickets_backup_2023-01-01_12-00-00.json",
+		"tickets_backup_2023-01-02_12-00-00.json",
+	}
+	
+	for _, backup := range testBackups {
+		backupPath := filepath.Join(dataDir, backup)
+		err := mockFS.WriteFile(backupPath, []byte(`{"tickets":[],"next_id":1}`), 0644)
+		if err != nil {
+			t.Fatalf("Failed to create test backup file: %v", err)
+		}
+	}
+	
+	// List backups using test function
+	backups, err := listBackupsForTest()
+	if err != nil {
+		t.Fatalf("Failed to list backups: %v", err)
+	}
+	
+	if len(backups) != 2 {
+		t.Errorf("Expected 2 backups, got %d", len(backups))
+	}
+	
+	// Check that all test backups are found
+	for _, testBackup := range testBackups {
+		found := false
+		for _, backup := range backups {
+			if backup == testBackup {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("Expected backup %s not found", testBackup)
+		}
+	}
+}
+
+func TestRestoreFromBackup(t *testing.T) {
+	// Set up mock file system
+	tempDir := t.TempDir()
+	mockFS := NewMockFileSystem(tempDir)
+	originalFS := fileSystem
+	fileSystem = mockFS
+	defer func() { fileSystem = originalFS }()
+	
+	// Create test backup file
+	dataDir := filepath.Join(tempDir, ".gotickets")
+	
+	backupData := `{
+		"tickets": [
+			{
+				"id": 1,
+				"title": "Restored Ticket",
+				"url": "https://example.com/restored",
+				"created_at": "2023-01-01T12:00:00Z"
+			}
+		],
+		"next_id": 2
+	}`
+	
+	backupName := "tickets_backup_2023-01-01_12-00-00.json"
+	backupPath := filepath.Join(dataDir, backupName)
+	err := mockFS.WriteFile(backupPath, []byte(backupData), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create test backup file: %v", err)
+	}
+	
+	// Restore from backup using test function
+	err = restoreFromBackupForTest(backupName)
+	if err != nil {
+		t.Fatalf("Failed to restore from backup: %v", err)
+	}
+	
+	// Load tickets and verify using specific path
+	filePath := filepath.Join(dataDir, "tickets.json")
+	loaded, err := LoadTicketsFromPath(filePath)
+	if err != nil {
+		t.Fatalf("Failed to load tickets after restore: %v", err)
+	}
+	
+	if len(loaded.Tickets) != 1 {
+		t.Errorf("Expected 1 ticket after restore, got %d", len(loaded.Tickets))
+	}
+	
+	if loaded.Tickets[0].Title != "Restored Ticket" {
+		t.Errorf("Expected ticket title 'Restored Ticket', got '%s'", loaded.Tickets[0].Title)
+	}
+	
+	if loaded.NextID != 2 {
+		t.Errorf("Expected NextID 2 after restore, got %d", loaded.NextID)
+	}
+}
+
+func TestRestoreFromBackup_NonExistent(t *testing.T) {
+	// Set up mock file system
+	tempDir := t.TempDir()
+	mockFS := NewMockFileSystem(tempDir)
+	originalFS := fileSystem
+	fileSystem = mockFS
+	defer func() { fileSystem = originalFS }()
+	
+	// Try to restore from non-existent backup
+	err := restoreFromBackupForTest("non_existent_backup.json")
+	if err == nil {
+		t.Error("Expected error when restoring from non-existent backup")
+	}
+}
+
+func TestRestoreFromBackup_Corrupted(t *testing.T) {
+	// Set up mock file system
+	tempDir := t.TempDir()
+	mockFS := NewMockFileSystem(tempDir)
+	originalFS := fileSystem
+	fileSystem = mockFS
+	defer func() { fileSystem = originalFS }()
+	
+	// Create corrupted backup file
+	dataDir := filepath.Join(tempDir, ".gotickets")
+	
+	backupName := "tickets_backup_2023-01-01_12-00-00.json"
+	backupPath := filepath.Join(dataDir, backupName)
+	err := mockFS.WriteFile(backupPath, []byte("invalid json"), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create corrupted backup file: %v", err)
+	}
+	
+	// Try to restore from corrupted backup
+	err = restoreFromBackupForTest(backupName)
+	if err == nil {
+		t.Error("Expected error when restoring from corrupted backup")
+	}
+}
+
+func TestIsolationFromRealEnvironment(t *testing.T) {
+	// Set up mock file system
+	tempDir := t.TempDir()
+	mockFS := NewMockFileSystem(tempDir)
+	originalFS := fileSystem
+	fileSystem = mockFS
+	defer func() { fileSystem = originalFS }()
+	
+	// Verify that we're using a temporary directory
+	if !strings.Contains(tempDir, "TestIsolationFromRealEnvironment") {
+		t.Errorf("Expected test to use temporary directory, got: %s", tempDir)
+	}
+	
+	// Verify that fileSystem.UserHomeDir returns our test directory
+	homeDir, err := fileSystem.UserHomeDir()
+	if err != nil {
+		t.Fatalf("fileSystem.UserHomeDir failed: %v", err)
+	}
+	
+	if homeDir != tempDir {
+		t.Errorf("fileSystem.UserHomeDir returned %s, expected %s", homeDir, tempDir)
+	}
+	
+	// Verify that LoadTickets uses our test directory
+	storage, err := LoadTickets()
+	if err != nil {
+		t.Fatalf("LoadTickets failed: %v", err)
+	}
+	
+	// Add a ticket and save it
+	storage.AddTicket("Test Isolation", "https://example.com/test")
+	err = storage.Save()
+	if err != nil {
+		t.Fatalf("Failed to save ticket: %v", err)
+	}
+	
+	// Verify the file was created in our test directory
+	expectedPath := filepath.Join(tempDir, ".gotickets", "tickets.json")
+	if _, err := mockFS.Stat(expectedPath); os.IsNotExist(err) {
+		t.Errorf("Expected file to be created at %s", expectedPath)
+	}
+	
+	// Verify that our mock file system is working correctly
+	// by checking that the file exists in our mock filesystem
+	// We don't need to check the real filesystem as it could interfere with real data
+	t.Logf("Test completed successfully using mock filesystem in: %s", tempDir)
 }

@@ -25,6 +25,8 @@ const (
 	ViewConfirmDelete
 	ViewImport
 	ViewImportResult
+	ViewBackups
+	ViewConfirmRestore
 )
 
 // Custom delegate for rendering tickets
@@ -63,6 +65,9 @@ type Model struct {
 	tempURL        string
 	ticketToDelete int
 	importResult   *ImportResult
+	backups        []string
+	backupToRestore string
+	selectedBackupIndex int
 }
 
 func NewModel() Model {
@@ -93,6 +98,7 @@ func NewModel() Model {
 			key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "delete")),
 			key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "open")),
 			key.NewBinding(key.WithKeys("i"), key.WithHelp("i", "import")),
+			key.NewBinding(key.WithKeys("b"), key.WithHelp("b", "backups")),
 			key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "refresh")),
 		}
 	}
@@ -110,6 +116,9 @@ func NewModel() Model {
 		list:           l,
 		textInput:      ti,
 		ticketToDelete: -1,
+		backups:        []string{},
+		backupToRestore: "",
+		selectedBackupIndex: -1,
 	}
 }
 
@@ -140,6 +149,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateImport(msg)
 		case ViewImportResult:
 			return m.updateImportResult(msg)
+		case ViewBackups:
+			return m.updateBackups(msg)
+		case ViewConfirmRestore:
+			return m.updateConfirmRestore(msg)
 		}
 	}
 	
@@ -201,6 +214,20 @@ func (m Model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.textInput.SetValue("")
 		m.textInput.Placeholder = "Enter path to .txt file..."
 		m.textInput.Focus()
+		return m, nil
+	case "b":
+		backups, err := listBackups()
+		if err != nil {
+			// TODO: Show error message
+			return m, nil
+		}
+		m.backups = backups
+		if len(backups) > 0 {
+			m.selectedBackupIndex = 0 // Initialize to first backup
+		} else {
+			m.selectedBackupIndex = -1 // No backups available
+		}
+		m.viewMode = ViewBackups
 		return m, nil
 	}
 	
@@ -405,11 +432,81 @@ func (m Model) updateImport(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m Model) updateImportResult(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "ctrl+c":
-		return m, tea.Quit
-	case "esc", "enter", " ":
+	case "enter", " ":
 		m.viewMode = ViewList
 		m.importResult = nil
+		m.refreshList()
+		return m, nil
+	case "esc":
+		m.viewMode = ViewList
+		m.importResult = nil
+		return m, nil
+	}
+	return m, nil
+}
+
+func (m Model) updateBackups(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c", "q":
+		m.viewMode = ViewList
+		m.selectedBackupIndex = -1
+		return m, nil
+	case "up", "k":
+		if len(m.backups) > 0 {
+			if m.selectedBackupIndex > 0 {
+				m.selectedBackupIndex--
+			} else {
+				m.selectedBackupIndex = len(m.backups) - 1
+			}
+		}
+		return m, nil
+	case "down", "j":
+		if len(m.backups) > 0 {
+			if m.selectedBackupIndex < len(m.backups)-1 {
+				m.selectedBackupIndex++
+			} else {
+				m.selectedBackupIndex = 0
+			}
+		}
+		return m, nil
+	case "enter":
+		if len(m.backups) > 0 && m.selectedBackupIndex >= 0 && m.selectedBackupIndex < len(m.backups) {
+			m.backupToRestore = m.backups[m.selectedBackupIndex]
+			m.viewMode = ViewConfirmRestore
+		}
+		return m, nil
+	case "esc":
+		m.viewMode = ViewList
+		m.selectedBackupIndex = -1
+		return m, nil
+	}
+	return m, nil
+}
+
+func (m Model) updateConfirmRestore(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c", "q":
+		m.viewMode = ViewList
+		m.selectedBackupIndex = -1
+		return m, nil
+	case "y", "Y":
+		// Confirm restore
+		err := restoreFromBackup(m.backupToRestore)
+		if err != nil {
+			// TODO: Show error message
+			return m, nil
+		}
+		// Reload tickets after restore
+		storage, _ := LoadTickets()
+		m.storage = storage
+		m.refreshList()
+		m.viewMode = ViewList
+		m.selectedBackupIndex = -1
+		return m, nil
+	case "n", "N", "esc":
+		m.viewMode = ViewList
+		m.selectedBackupIndex = -1
+		return m, nil
 	}
 	return m, nil
 }
@@ -519,6 +616,41 @@ func (m Model) View() string {
 		}
 		
 		s.WriteString("\nEnter/Esc/Пробел - вернуться к списку\n")
+	
+	case ViewBackups:
+		s.WriteString(headerStyle.Render("Резервные копии"))
+		s.WriteString("\n\n")
+		
+		if len(m.backups) == 0 {
+			s.WriteString("Резервные копии не найдены.\n")
+		} else {
+			s.WriteString(fmt.Sprintf("Найдено резервных копий: %d\n\n", len(m.backups)))
+			for i, backup := range m.backups {
+				if i == m.selectedBackupIndex {
+					// Highlight selected backup
+					s.WriteString(lipgloss.NewStyle().
+						Foreground(lipgloss.Color("15")).
+						Background(lipgloss.Color("12")).
+						Padding(0, 1).
+						Render(fmt.Sprintf("> %s", backup)))
+				} else {
+					s.WriteString(fmt.Sprintf("  %s", backup))
+				}
+				s.WriteString("\n")
+			}
+		}
+		
+		s.WriteString("\n")
+		s.WriteString("↑/↓ - навигация, Enter - выбрать, Esc - отмена\n")
+	
+	case ViewConfirmRestore:
+		s.WriteString(headerStyle.Render("Подтверждение восстановления"))
+		s.WriteString("\n\n")
+		s.WriteString(fmt.Sprintf("Вы уверены, что хотите восстановить из резервной копии?\n"))
+		s.WriteString(fmt.Sprintf("Резервная копия: %s\n\n", m.backupToRestore))
+		s.WriteString("⚠️  ВНИМАНИЕ: Это заменит все текущие тикеты!\n\n")
+		s.WriteString("y/Enter - да, восстановить\n")
+		s.WriteString("n/Esc - нет, отменить\n")
 	}
 
 	return s.String()
