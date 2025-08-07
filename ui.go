@@ -68,6 +68,7 @@ type Model struct {
 	backups        []string
 	backupToRestore string
 	selectedBackupIndex int
+	urlError       string
 }
 
 func NewModel() Model {
@@ -188,6 +189,7 @@ func (m Model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.textInput.Placeholder = "Enter URL..."
 		m.textInput.Focus()
 		m.tempURL = ""
+		m.urlError = ""
 		return m, nil
 	case "/":
 		m.searchMode = true
@@ -301,17 +303,30 @@ func (m Model) updateAddURL(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.textInput.SetValue("")
 		m.textInput.Blur()
 		m.tempURL = ""
+		m.urlError = ""
 		return m, nil
 	case "enter":
 		value := strings.TrimSpace(m.textInput.Value())
 		if value != "" {
+			// Проверка на дублирование URL на этапе ввода ссылки
+			if m.storage.HasTicketWithURL(value) {
+				m.urlError = "Тикет с такой ссылкой уже существует!"
+				return m, nil
+			}
+			
 			m.tempURL = value
 			m.viewMode = ViewAddTitle
 			m.textInput.SetValue("")
 			m.textInput.Placeholder = "Enter ticket title..."
 			m.textInput.Focus()
+			m.urlError = ""
 		}
 		return m, nil
+	}
+	
+	// Clear error when user starts typing
+	if m.urlError != "" {
+		m.urlError = ""
 	}
 	
 	// Let textinput handle the input
@@ -540,6 +555,7 @@ func (m Model) updateConfirmRestore(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+
 func (m Model) View() string {
 	var s strings.Builder
 
@@ -602,6 +618,16 @@ func (m Model) View() string {
 		s.WriteString("Введите ссылку:\n")
 		s.WriteString(inputStyle.Render(m.textInput.View()))
 		s.WriteString("\n")
+		
+		// Show error message if there is one
+		if m.urlError != "" {
+			errorStyle := lipgloss.NewStyle().
+				Foreground(lipgloss.Color("9")).
+				Bold(true)
+			s.WriteString(errorStyle.Render("❌ " + m.urlError))
+			s.WriteString("\n")
+		}
+		
 		s.WriteString(formatKeyHelp("Enter", "продолжить к названию", "Esc", "отмена"))
 	
 	case ViewAddTitle:
