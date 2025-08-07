@@ -81,7 +81,7 @@ func NewModel() Model {
 	
 	// Create list with custom delegate
 	l := list.New(items, ticketDelegate{}, 80, 24)
-	l.Title = "GoTickets - Ticket Manager"
+	l.Title = fmt.Sprintf("GoTickets - Ticket Manager (Всего тикетов: %d)", len(storage.Tickets))
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(false) // We'll handle search manually
 	l.Styles.Title = lipgloss.NewStyle().
@@ -244,6 +244,7 @@ func (m *Model) refreshList() {
 		items[i] = ticket
 	}
 	m.list.SetItems(items)
+	m.list.Title = fmt.Sprintf("GoTickets - Ticket Manager (Всего тикетов: %d)", len(m.storage.Tickets))
 }
 
 func (m *Model) filterList(query string) {
@@ -258,6 +259,7 @@ func (m *Model) filterList(query string) {
 		items[i] = ticket
 	}
 	m.list.SetItems(items)
+	m.list.Title = fmt.Sprintf("GoTickets - Ticket Manager (Показано: %d из %d)", len(filteredTickets), len(m.storage.Tickets))
 }
 
 func openBrowser(url string) func() error {
