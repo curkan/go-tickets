@@ -374,7 +374,7 @@ func (m Model) updateSearch(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.textInput.Blur()
 		m.filterList(m.searchQuery)
 		return m, nil
-	case "up", "down", "k", "j":
+	case "up", "down":
 		// Handle navigation within the list while in search mode
 		var listCmd tea.Cmd
 		m.list, listCmd = m.list.Update(msg)
