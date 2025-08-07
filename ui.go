@@ -21,7 +21,6 @@ const (
 	ViewList ViewMode = iota
 	ViewAddURL
 	ViewAddTitle
-	ViewSearch
 	ViewConfirmDelete
 	ViewImport
 	ViewImportResult
@@ -62,6 +61,7 @@ type Model struct {
 	list           list.Model
 	textInput      textinput.Model
 	searchMode     bool
+	searchQuery    string
 	tempURL        string
 	ticketToDelete int
 	importResult   *ImportResult
@@ -94,7 +94,7 @@ func NewModel() Model {
 		return []key.Binding{
 			key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "copy url")),
 			key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "add")),
-			key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "search")),
+			key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "search")),
 			key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "delete")),
 			key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "open")),
 			key.NewBinding(key.WithKeys("i"), key.WithHelp("i", "import")),
@@ -134,6 +134,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 		
 	case tea.KeyMsg:
+		if m.searchMode {
+			return m.updateSearch(msg)
+		}
+		
 		switch m.viewMode {
 		case ViewList:
 			return m.updateList(msg)
@@ -141,8 +145,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateAddURL(msg)
 		case ViewAddTitle:
 			return m.updateAddTitle(msg)
-		case ViewSearch:
-			return m.updateSearch(msg)
 		case ViewConfirmDelete:
 			return m.updateConfirmDelete(msg)
 		case ViewImport:
@@ -184,12 +186,11 @@ func (m Model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.textInput.Focus()
 		m.tempURL = ""
 		return m, nil
-	case "s":
-		m.viewMode = ViewSearch
+	case "/":
+		m.searchMode = true
 		m.textInput.SetValue("")
 		m.textInput.Placeholder = "Search tickets..."
 		m.textInput.Focus()
-		m.searchMode = true
 		return m, nil
 	case "r":
 		m.refreshList()
@@ -240,6 +241,20 @@ func (m Model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m *Model) refreshList() {
 	items := make([]list.Item, len(m.storage.Tickets))
 	for i, ticket := range m.storage.Tickets {
+		items[i] = ticket
+	}
+	m.list.SetItems(items)
+}
+
+func (m *Model) filterList(query string) {
+	if query == "" {
+		m.refreshList()
+		return
+	}
+	
+	filteredTickets := m.storage.Search(query)
+	items := make([]list.Item, len(filteredTickets))
+	for i, ticket := range filteredTickets {
 		items[i] = ticket
 	}
 	m.list.SetItems(items)
@@ -337,28 +352,33 @@ func (m Model) updateSearch(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "ctrl+c":
 		return m, tea.Quit
 	case "esc":
-		m.viewMode = ViewList
+		m.searchMode = false
+		m.searchQuery = ""
 		m.textInput.SetValue("")
 		m.textInput.Blur()
 		m.refreshList() // Reset to show all tickets
 		return m, nil
 	case "enter":
-		// Filter tickets based on search
-		query := m.textInput.Value()
-		filteredTickets := m.storage.Search(query)
-		items := make([]list.Item, len(filteredTickets))
-		for i, ticket := range filteredTickets {
-			items[i] = ticket
-		}
-		m.list.SetItems(items)
-		m.viewMode = ViewList
-		m.textInput.SetValue("")
+		// Apply current search and exit search mode
+		m.searchMode = false
+		m.searchQuery = m.textInput.Value()
 		m.textInput.Blur()
+		m.filterList(m.searchQuery)
 		return m, nil
+	case "up", "down", "k", "j":
+		// Handle navigation within the list while in search mode
+		var listCmd tea.Cmd
+		m.list, listCmd = m.list.Update(msg)
+		return m, listCmd
 	}
 	
-	// Let textinput handle the input
+	// Let textinput handle the input and update search in real time
 	m.textInput, cmd = m.textInput.Update(msg)
+	
+	// Filter tickets in real time as user types
+	query := m.textInput.Value()
+	m.filterList(query)
+	
 	return m, cmd
 }
 
@@ -526,7 +546,18 @@ func (m Model) View() string {
 
 	switch m.viewMode {
 	case ViewList:
-		return m.list.View()
+		if m.searchMode {
+			// Show list with search input at bottom
+			var s strings.Builder
+			s.WriteString(m.list.View())
+			s.WriteString("\n")
+			s.WriteString(inputStyle.Render("Поиск: " + m.textInput.View()))
+			s.WriteString("\n")
+			s.WriteString("Enter - применить поиск, Esc - отмена")
+			return s.String()
+		} else {
+			return m.list.View()
+		}
 
 	case ViewAddURL:
 		s.WriteString(headerStyle.Render("Добавить новый тикет - Ссылка"))
@@ -545,32 +576,6 @@ func (m Model) View() string {
 		s.WriteString("\n\n")
 		s.WriteString("Enter - сохранить тикет, Esc - отмена\n")
 
-	case ViewSearch:
-		s.WriteString(headerStyle.Render("Поиск тикетов"))
-		s.WriteString("\n\n")
-		s.WriteString("Поиск: ")
-		s.WriteString(inputStyle.Render(m.textInput.View()))
-		s.WriteString("\n\n")
-
-		// Show live search results
-		query := m.textInput.Value()
-		if query != "" {
-			searchResults := m.storage.Search(query)
-			s.WriteString(fmt.Sprintf("Найдено: %d тикетов\n\n", len(searchResults)))
-			
-			// Show search results
-			if len(searchResults) == 0 {
-				s.WriteString("Тикеты не найдены.\n")
-			} else {
-				for _, ticket := range searchResults {
-					s.WriteString(fmt.Sprintf("#%d: %s\n", ticket.ID, ticket.Title))
-				}
-			}
-		}
-
-		s.WriteString("\n")
-		s.WriteString("Enter - применить поиск, Esc - отмена\n")
-	
 	case ViewConfirmDelete:
 		s.WriteString(headerStyle.Render("Подтверждение удаления"))
 		s.WriteString("\n\n")

@@ -105,15 +105,15 @@ func TestModel_UpdateList_ModeChanges(t *testing.T) {
 	}
 	
 	// Test search mode
-	updatedModel, _ = model.updateList(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
-	if updatedModel.(Model).viewMode != ViewSearch {
-		t.Errorf("Expected viewMode to be ViewSearch after 's', got %v", updatedModel.(Model).viewMode)
+	updatedModel, _ = model.updateList(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+	if updatedModel.(Model).viewMode != ViewList {
+		t.Errorf("Expected viewMode to remain ViewList after '/', got %v", updatedModel.(Model).viewMode)
 	}
 	if updatedModel.(Model).textInput.Value() != "" {
-		t.Errorf("Expected textInput to be cleared after 's', got '%s'", updatedModel.(Model).textInput.Value())
+		t.Errorf("Expected textInput to be cleared after '/', got '%s'", updatedModel.(Model).textInput.Value())
 	}
 	if !updatedModel.(Model).searchMode {
-		t.Error("Expected searchMode to be true after 's'")
+		t.Error("Expected searchMode to be true after '/'")
 	}
 	
 	// Test refresh
@@ -272,7 +272,7 @@ func TestModel_UpdateSearch(t *testing.T) {
 	// Clear existing tickets first
 	model.storage.Tickets = []Ticket{}
 	model.storage.NextID = 1
-	model.viewMode = ViewSearch
+	model.searchMode = true
 	model.storage.AddTicket("Unique Test Ticket", "https://example.com")
 	model.storage.AddTicket("Another Ticket", "https://another.com")
 	model.refreshList()
@@ -281,11 +281,14 @@ func TestModel_UpdateSearch(t *testing.T) {
 	// Test escape
 	updatedModel, _ := model.updateSearch(tea.KeyMsg{Type: tea.KeyEsc})
 	finalModel := updatedModel.(Model)
-	if finalModel.viewMode != ViewList {
-		t.Errorf("Expected viewMode to be ViewList after escape, got %v", finalModel.viewMode)
+	if finalModel.searchMode {
+		t.Error("Expected searchMode to be false after escape")
 	}
 	if finalModel.textInput.Value() != "" {
 		t.Errorf("Expected textInput to be cleared after escape, got '%s'", finalModel.textInput.Value())
+	}
+	if finalModel.searchQuery != "" {
+		t.Errorf("Expected searchQuery to be cleared after escape, got '%s'", finalModel.searchQuery)
 	}
 	if len(finalModel.list.Items()) != len(finalModel.storage.Tickets) {
 		t.Error("Expected list to be reset to all tickets after escape")
@@ -295,11 +298,11 @@ func TestModel_UpdateSearch(t *testing.T) {
 	model.textInput.SetValue("Unique")
 	updatedModel, _ = model.updateSearch(tea.KeyMsg{Type: tea.KeyEnter})
 	finalModel = updatedModel.(Model)
-	if finalModel.viewMode != ViewList {
-		t.Errorf("Expected viewMode to be ViewList after enter, got %v", finalModel.viewMode)
+	if finalModel.searchMode {
+		t.Error("Expected searchMode to be false after enter")
 	}
-	if finalModel.textInput.Value() != "" {
-		t.Errorf("Expected textInput to be cleared after enter, got '%s'", finalModel.textInput.Value())
+	if finalModel.searchQuery != "Unique" {
+		t.Errorf("Expected searchQuery to be saved as 'Unique', got '%s'", finalModel.searchQuery)
 	}
 	if len(finalModel.list.Items()) != 1 {
 		t.Errorf("Expected 1 filtered ticket after search, got %d", len(finalModel.list.Items()))
@@ -385,7 +388,6 @@ func TestViewModes(t *testing.T) {
 		{ViewList, "ViewList"},
 		{ViewAddURL, "ViewAddURL"},
 		{ViewAddTitle, "ViewAddTitle"},
-		{ViewSearch, "ViewSearch"},
 		{ViewConfirmDelete, "ViewConfirmDelete"},
 		{ViewImport, "ViewImport"},
 		{ViewImportResult, "ViewImportResult"},
@@ -412,7 +414,7 @@ func TestModel_View(t *testing.T) {
 	model.ticketToDelete = 1
 	
 	// Test that View() returns a string for each mode
-	modes := []ViewMode{ViewList, ViewAddURL, ViewAddTitle, ViewSearch, ViewConfirmDelete, ViewImport, ViewImportResult}
+	modes := []ViewMode{ViewList, ViewAddURL, ViewAddTitle, ViewConfirmDelete, ViewImport, ViewImportResult}
 	
 	for _, mode := range modes {
 		model.viewMode = mode
