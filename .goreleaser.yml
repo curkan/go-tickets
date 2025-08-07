@@ -16,12 +16,11 @@ before:
     - go mod tidy
 
 brews:
-- name: gotickets
-  homepage: https://github.com/curkan/gotickets
+- name: go2fa
+  homepage: https://github.com/curkan/homebrew-public 
   repository:
     owner: curkan
     name: homebrew-public
-  url_template: "https://github.com/curkan/gotickets/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
 
 builds:
   - env:
