@@ -16,6 +16,17 @@ GoTickets позволяет:
 
 ## Установка
 
+
+### Из HomeBrew (рекомендовано)
+
+```bash
+# Добавить tap
+brew tap curkan/homebrew-public
+
+# Установить gotickets
+brew install gotickets
+```
+
 ### Из исходного кода
 
 ```bash
@@ -32,7 +43,6 @@ go build -o gotickets
 # Или запустите напрямую
 go run .
 ```
-
 ### Требования
 
 - Go 1.21 или выше
