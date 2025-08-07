@@ -553,6 +553,34 @@ func (m Model) View() string {
 		BorderForeground(lipgloss.Color("62")).
 		Padding(0, 1)
 
+	// Стили для подсказок клавиш
+	keyStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("12")).
+		Bold(true)
+	
+	actionStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("250"))
+	
+	helpStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("240")).
+		Padding(0, 1).
+		MarginTop(1)
+
+	// Функция для форматирования подсказок клавиш
+	formatKeyHelp := func(pairs ...string) string {
+		if len(pairs)%2 != 0 {
+			return ""
+		}
+		var helpParts []string
+		for i := 0; i < len(pairs); i += 2 {
+			key := pairs[i]
+			action := pairs[i+1]
+			helpParts = append(helpParts, keyStyle.Render(key)+" - "+actionStyle.Render(action))
+		}
+		return helpStyle.Render(strings.Join(helpParts, " • "))
+	}
+
 	switch m.viewMode {
 	case ViewList:
 		if m.searchMode {
@@ -562,7 +590,7 @@ func (m Model) View() string {
 			s.WriteString("\n")
 			s.WriteString(inputStyle.Render("Поиск: " + m.textInput.View()))
 			s.WriteString("\n")
-			s.WriteString("Enter - применить поиск, Esc - отмена")
+			s.WriteString(formatKeyHelp("Enter", "применить поиск", "Esc", "отмена"))
 			return s.String()
 		} else {
 			return m.list.View()
@@ -573,8 +601,8 @@ func (m Model) View() string {
 		s.WriteString("\n\n")
 		s.WriteString("Введите ссылку:\n")
 		s.WriteString(inputStyle.Render(m.textInput.View()))
-		s.WriteString("\n\n")
-		s.WriteString("Enter - продолжить к названию, Esc - отмена\n")
+		s.WriteString("\n")
+		s.WriteString(formatKeyHelp("Enter", "продолжить к названию", "Esc", "отмена"))
 	
 	case ViewAddTitle:
 		s.WriteString(headerStyle.Render("Добавить новый тикет - Название"))
@@ -582,8 +610,8 @@ func (m Model) View() string {
 		s.WriteString(fmt.Sprintf("Ссылка: %s\n", m.tempURL))
 		s.WriteString("Введите название тикета:\n")
 		s.WriteString(inputStyle.Render(m.textInput.View()))
-		s.WriteString("\n\n")
-		s.WriteString("Enter - сохранить тикет, Esc - отмена\n")
+		s.WriteString("\n")
+		s.WriteString(formatKeyHelp("Enter", "сохранить тикет", "Esc", "отмена"))
 
 	case ViewConfirmDelete:
 		s.WriteString(headerStyle.Render("Подтверждение удаления"))
@@ -599,9 +627,8 @@ func (m Model) View() string {
 		}
 		
 		s.WriteString(fmt.Sprintf("Вы уверены, что хотите удалить тикет?\n"))
-		s.WriteString(fmt.Sprintf("Тикет: #%d - %s\n\n", m.ticketToDelete, ticketTitle))
-		s.WriteString("y/Enter - да, удалить\n")
-		s.WriteString("n/Esc - нет, отменить\n")
+		s.WriteString(fmt.Sprintf("Тикет: #%d - %s\n", m.ticketToDelete, ticketTitle))
+		s.WriteString(formatKeyHelp("y/Enter", "да, удалить", "n/Esc", "нет, отменить"))
 	
 	case ViewImport:
 		s.WriteString(headerStyle.Render("Импорт тикетов"))
@@ -609,8 +636,8 @@ func (m Model) View() string {
 		s.WriteString("Введите путь к .txt файлу:\n")
 		s.WriteString("Формат файла: каждая строка содержит 'URL - Название'\n\n")
 		s.WriteString(inputStyle.Render(m.textInput.View()))
-		s.WriteString("\n\n")
-		s.WriteString("Enter - начать импорт, Esc - отмена\n")
+		s.WriteString("\n")
+		s.WriteString(formatKeyHelp("Enter", "начать импорт", "Esc", "отмена"))
 	
 	case ViewImportResult:
 		s.WriteString(headerStyle.Render("Результат импорта"))
@@ -629,7 +656,8 @@ func (m Model) View() string {
 			}
 		}
 		
-		s.WriteString("\nEnter/Esc/Пробел - вернуться к списку\n")
+		s.WriteString("\n")
+		s.WriteString(formatKeyHelp("Enter/Esc/Пробел", "вернуться к списку"))
 	
 	case ViewBackups:
 		s.WriteString(headerStyle.Render("Резервные копии"))
@@ -655,16 +683,15 @@ func (m Model) View() string {
 		}
 		
 		s.WriteString("\n")
-		s.WriteString("↑/↓ - навигация, Enter - выбрать, Esc - отмена\n")
+		s.WriteString(formatKeyHelp("↑/↓", "навигация", "Enter", "выбрать", "Esc", "отмена"))
 	
 	case ViewConfirmRestore:
 		s.WriteString(headerStyle.Render("Подтверждение восстановления"))
 		s.WriteString("\n\n")
 		s.WriteString(fmt.Sprintf("Вы уверены, что хотите восстановить из резервной копии?\n"))
 		s.WriteString(fmt.Sprintf("Резервная копия: %s\n\n", m.backupToRestore))
-		s.WriteString("⚠️  ВНИМАНИЕ: Это заменит все текущие тикеты!\n\n")
-		s.WriteString("y/Enter - да, восстановить\n")
-		s.WriteString("n/Esc - нет, отменить\n")
+		s.WriteString("⚠️  ВНИМАНИЕ: Это заменит все текущие тикеты!\n")
+		s.WriteString(formatKeyHelp("y/Enter", "да, восстановить", "n/Esc", "нет, отменить"))
 	}
 
 	return s.String()
