@@ -16,7 +16,7 @@ before:
     - go mod tidy
 
 brews:
-- name: go2fa
+- name: gotickets
   homepage: https://github.com/curkan/homebrew-public 
   repository:
     owner: curkan
