@@ -21,6 +21,7 @@ brews:
   repository:
     owner: curkan
     name: homebrew-public
+  url_template: "https://github.com/curkan/go-tickets/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
 
 builds:
   - env:
