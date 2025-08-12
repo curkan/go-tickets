@@ -42,19 +42,19 @@ type Model struct {
 // NewModel creates and initializes a new application model
 func NewModel() Model {
 	ticketStorage, _ := storage.LoadTicketsWithFS(&storage.RealFileSystem{})
-	
+
 	// Convert tickets to list items
 	items := make([]list.Item, len(ticketStorage.Tickets))
 	for i, ticket := range ticketStorage.Tickets {
 		items[i] = ticket
 	}
-	
+
 	// Create list with custom delegate
 	listComponent := createList(items, len(ticketStorage.Tickets))
-	
+
 	// Create text input component
 	textInputComponent := createTextInput()
-	
+
 	return Model{
 		storage:             ticketStorage,
 		viewMode:            ViewList,

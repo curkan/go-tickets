@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	
+
 	"gotickets/internal/storage"
 	"gotickets/test/mocks"
 )
@@ -12,20 +12,20 @@ import (
 func TestTicketStorage_AddTicket(t *testing.T) {
 	tempDir := t.TempDir()
 	mockFS := mocks.NewMockFileSystem(tempDir)
-	
+
 	ticketStorage := storage.NewTicketStorage(mockFS)
-	
+
 	ticketStorage.AddTicket("Test Ticket", "https://example.com")
-	
+
 	if len(ticketStorage.Tickets) != 1 {
 		t.Fatalf("Expected 1 ticket, got %d", len(ticketStorage.Tickets))
 	}
-	
+
 	ticket := ticketStorage.Tickets[0]
 	if ticket.Title != "Test Ticket" || ticket.URL != "https://example.com" {
 		t.Fatalf("Unexpected ticket data: %+v", ticket)
 	}
-	
+
 	if ticketStorage.NextID != 2 {
 		t.Fatalf("Expected NextID to be 2, got %d", ticketStorage.NextID)
 	}
@@ -34,25 +34,25 @@ func TestTicketStorage_AddTicket(t *testing.T) {
 func TestTicketStorage_Search(t *testing.T) {
 	tempDir := t.TempDir()
 	mockFS := mocks.NewMockFileSystem(tempDir)
-	
+
 	ticketStorage := storage.NewTicketStorage(mockFS)
-	
+
 	ticketStorage.AddTicket("Bug Fix", "https://example.com/bug")
-	ticketStorage.AddTicket("Feature Request", "https://example.com/feature") 
+	ticketStorage.AddTicket("Feature Request", "https://example.com/feature")
 	ticketStorage.AddTicket("Documentation", "https://docs.example.com")
-	
+
 	// Search by title
 	results := ticketStorage.Search("bug")
 	if len(results) != 1 || results[0].Title != "Bug Fix" {
 		t.Fatalf("Expected 1 result for 'bug', got %d", len(results))
 	}
-	
+
 	// Search by URL
 	results = ticketStorage.Search("docs")
 	if len(results) != 1 || results[0].Title != "Documentation" {
 		t.Fatalf("Expected 1 result for 'docs', got %d", len(results))
 	}
-	
+
 	// Empty search should return all
 	results = ticketStorage.Search("")
 	if len(results) != 3 {
@@ -63,25 +63,25 @@ func TestTicketStorage_Search(t *testing.T) {
 func TestTicketStorage_DeleteTicket(t *testing.T) {
 	tempDir := t.TempDir()
 	mockFS := mocks.NewMockFileSystem(tempDir)
-	
+
 	ticketStorage := storage.NewTicketStorage(mockFS)
-	
+
 	ticketStorage.AddTicket("Test 1", "https://example.com/1")
 	ticketStorage.AddTicket("Test 2", "https://example.com/2")
-	
+
 	// Delete first ticket (ID 1)
 	if !ticketStorage.DeleteTicket(1) {
 		t.Fatal("Expected successful deletion of ticket ID 1")
 	}
-	
+
 	if len(ticketStorage.Tickets) != 1 {
 		t.Fatalf("Expected 1 ticket after deletion, got %d", len(ticketStorage.Tickets))
 	}
-	
+
 	if ticketStorage.Tickets[0].ID != 2 {
 		t.Fatalf("Expected remaining ticket to have ID 2, got %d", ticketStorage.Tickets[0].ID)
 	}
-	
+
 	// Try to delete non-existent ticket
 	if ticketStorage.DeleteTicket(999) {
 		t.Fatal("Expected deletion of non-existent ticket to fail")
@@ -91,30 +91,30 @@ func TestTicketStorage_DeleteTicket(t *testing.T) {
 func TestTicketStorage_SaveAndLoad(t *testing.T) {
 	tempDir := t.TempDir()
 	mockFS := mocks.NewMockFileSystem(tempDir)
-	
+
 	// Create and populate storage
 	storage1 := storage.NewTicketStorage(mockFS)
 	storage1.AddTicket("Test Ticket", "https://example.com")
-	
+
 	// Save
 	if err := storage1.Save(); err != nil {
 		t.Fatalf("Failed to save storage: %v", err)
 	}
-	
+
 	// Load
 	storage2, err := storage.LoadTicketsWithFS(mockFS)
 	if err != nil {
 		t.Fatalf("Failed to load storage: %v", err)
 	}
-	
+
 	if len(storage2.Tickets) != 1 {
 		t.Fatalf("Expected 1 ticket after load, got %d", len(storage2.Tickets))
 	}
-	
+
 	if storage2.Tickets[0].Title != "Test Ticket" {
 		t.Fatalf("Unexpected ticket title after load: %s", storage2.Tickets[0].Title)
 	}
-	
+
 	if storage2.NextID != 2 {
 		t.Fatalf("Expected NextID to be 2 after load, got %d", storage2.NextID)
 	}
@@ -131,7 +131,7 @@ func TestTicket_ExtractTicketNumber(t *testing.T) {
 		{"https://example.com/tasks/task=999", "999"},
 		{"https://example.com/no-numbers", "000001"}, // Falls back to ID
 	}
-	
+
 	for _, tc := range testCases {
 		ticket := storage.Ticket{ID: 1, Title: "Test", URL: tc.url}
 		result := ticket.ExtractTicketNumber()
@@ -210,7 +210,7 @@ func TestStorage_ImportFromFile_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ImportFromFile failed: %v", err)
 	}
-	
+
 	if result.Added != 1 || result.Errors != 0 {
 		t.Fatalf("unexpected importResult: %+v", result)
 	}
@@ -234,7 +234,7 @@ func TestStorage_HasTicketWithURL_DuplicateDetection(t *testing.T) {
 	if !ticketStorage.HasTicketWithURL(existingURL) {
 		t.Fatalf("expected ticket storage to detect duplicate URL")
 	}
-	
+
 	if ticketStorage.HasTicketWithURL("https://nonexistent.com") {
 		t.Fatalf("expected ticket storage to not find non-existent URL")
 	}

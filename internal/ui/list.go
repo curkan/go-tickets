@@ -8,15 +8,15 @@ import (
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
-	"github.com/charmbracelet/lipgloss"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // ticketDelegate implements the list.ItemDelegate interface for rendering tickets
 type ticketDelegate struct{}
 
-func (d ticketDelegate) Height() int                             { return 1 }
-func (d ticketDelegate) Spacing() int                            { return 0 }
+func (d ticketDelegate) Height() int                               { return 1 }
+func (d ticketDelegate) Spacing() int                              { return 0 }
 func (d ticketDelegate) Update(msg tea.Msg, m *list.Model) tea.Cmd { return nil }
 
 func (d ticketDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {

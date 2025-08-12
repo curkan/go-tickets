@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"gotickets/pkg/gotickets"
 	tea "github.com/charmbracelet/bubbletea"
+	"gotickets/pkg/gotickets"
 )
 
 func main() {

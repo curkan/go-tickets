@@ -63,7 +63,7 @@ func (fs *MockFileSystem) ReadDir(dirname string) ([]os.DirEntry, error) {
 	if err, exists := fs.errors["ReadDir"]; exists {
 		return nil, err
 	}
-	
+
 	var entries []os.DirEntry
 	for filename := range fs.files {
 		if strings.HasPrefix(filename, dirname+"/") || strings.HasPrefix(filename, dirname+"\\") {
@@ -74,7 +74,7 @@ func (fs *MockFileSystem) ReadDir(dirname string) ([]os.DirEntry, error) {
 			}
 		}
 	}
-	
+
 	return entries, nil
 }
 
@@ -136,11 +136,11 @@ type mockDirEntry struct {
 	isDir bool
 }
 
-func (m *mockDirEntry) Name() string               { return m.name }
-func (m *mockDirEntry) IsDir() bool                { return m.isDir }
-func (m *mockDirEntry) Type() os.FileMode          { return 0644 }
-func (m *mockDirEntry) Info() (os.FileInfo, error) { 
-	return &mockFileInfo{name: m.name, size: 0}, nil 
+func (m *mockDirEntry) Name() string      { return m.name }
+func (m *mockDirEntry) IsDir() bool       { return m.isDir }
+func (m *mockDirEntry) Type() os.FileMode { return 0644 }
+func (m *mockDirEntry) Info() (os.FileInfo, error) {
+	return &mockFileInfo{name: m.name, size: 0}, nil
 }
 
 // AssertErr is a helper to produce deterministic errors
