@@ -24,7 +24,8 @@ brews:
   url_template: "https://github.com/curkan/go-tickets/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
 
 builds:
-  - env:
+  - main: ./cmd/gotickets
+    env:
       - CGO_ENABLED=0
     goos:
       - linux
