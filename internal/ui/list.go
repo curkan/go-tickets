@@ -31,7 +31,7 @@ func (d ticketDelegate) Render(w io.Writer, m list.Model, index int, listItem li
 
 	if index == m.Index() {
 		fmt.Fprint(w, lipgloss.NewStyle().
-			Foreground(lipgloss.Color("15")).
+			Foreground(lipgloss.Color("0")).
 			Background(lipgloss.Color("12")).
 			Padding(0, 1).
 			Render("> "+str))

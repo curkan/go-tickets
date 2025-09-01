@@ -143,7 +143,7 @@ func (m Model) renderBackupsView() string {
 			if i == m.selectedBackupIndex {
 				// Highlight selected backup
 				s.WriteString(lipgloss.NewStyle().
-					Foreground(lipgloss.Color("15")).
+					Foreground(lipgloss.Color("0")).
 					Background(lipgloss.Color("12")).
 					Padding(0, 1).
 					Render(fmt.Sprintf("> %s", backup)))
