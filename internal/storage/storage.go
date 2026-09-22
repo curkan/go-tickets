@@ -84,10 +84,10 @@ type TicketStorage struct {
 }
 
 type ImportResult struct {
-	Added      int
-	Duplicates int
-	Errors     int
-	ErrorLines []string
+	Added      int      `json:"added"`
+	Duplicates int      `json:"duplicates"`
+	Errors     int      `json:"errors"`
+	ErrorLines []string `json:"error_lines"`
 }
 
 func NewTicketStorage(fs FileSystem) *TicketStorage { return &TicketStorage{NextID: 1, fs: fs} }
@@ -97,6 +97,24 @@ func (ts *TicketStorage) getFS() FileSystem {
 		return &RealFileSystem{}
 	}
 	return ts.fs
+}
+
+// DataDirUsing возвращает путь к директории с данными приложения
+func DataDirUsing(fs FileSystem) (string, error) {
+	homeDir, err := fs.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(homeDir, ".gotickets"), nil
+}
+
+// DataFilePathUsing возвращает путь к файлу с тикетами
+func DataFilePathUsing(fs FileSystem) (string, error) {
+	dataDir, err := DataDirUsing(fs)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dataDir, "tickets.json"), nil
 }
 
 func CreateBackupUsing(fs FileSystem) error {
@@ -123,11 +141,42 @@ func CreateBackupUsing(fs FileSystem) error {
 
 func (ts *TicketStorage) AddTicket(title, url string) {
 	if err := CreateBackupUsing(ts.getFS()); err != nil {
-		fmt.Printf("Warning: failed to create backup: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Warning: failed to create backup: %v\n", err)
 	}
 	ticket := Ticket{ID: ts.NextID, Title: title, URL: url, CreatedAt: time.Now()}
 	ts.Tickets = append(ts.Tickets, ticket)
 	ts.NextID++
+}
+
+// GetByID возвращает тикет по его идентификатору
+func (ts *TicketStorage) GetByID(id int) (Ticket, bool) {
+	for _, ticket := range ts.Tickets {
+		if ticket.ID == id {
+			return ticket, true
+		}
+	}
+	return Ticket{}, false
+}
+
+// UpdateTicket обновляет название и/или ссылку тикета.
+// Пустые значения означают "не менять".
+func (ts *TicketStorage) UpdateTicket(id int, title, url string) (Ticket, bool) {
+	if err := CreateBackupUsing(ts.getFS()); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to create backup: %v\n", err)
+	}
+	for i, ticket := range ts.Tickets {
+		if ticket.ID != id {
+			continue
+		}
+		if title != "" {
+			ts.Tickets[i].Title = title
+		}
+		if url != "" {
+			ts.Tickets[i].URL = url
+		}
+		return ts.Tickets[i], true
+	}
+	return Ticket{}, false
 }
 
 func (ts *TicketStorage) Search(query string) []Ticket {
@@ -146,7 +195,7 @@ func (ts *TicketStorage) Search(query string) []Ticket {
 
 func (ts *TicketStorage) DeleteTicket(id int) bool {
 	if err := CreateBackupUsing(ts.getFS()); err != nil {
-		fmt.Printf("Warning: failed to create backup: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Warning: failed to create backup: %v\n", err)
 	}
 	for i, ticket := range ts.Tickets {
 		if ticket.ID == id {
@@ -168,7 +217,7 @@ func (ts *TicketStorage) HasTicketWithURL(url string) bool {
 
 func (ts *TicketStorage) ImportFromFile(filePath string) (*ImportResult, error) {
 	if err := CreateBackupUsing(ts.getFS()); err != nil {
-		fmt.Printf("Warning: failed to create backup: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Warning: failed to create backup: %v\n", err)
 	}
 	result := &ImportResult{ErrorLines: make([]string, 0)}
 	f, err := ts.getFS().Open(filePath)

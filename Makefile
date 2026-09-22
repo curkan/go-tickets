@@ -3,13 +3,17 @@
 # Имя бинарного файла
 BINARY_NAME=gotickets
 
+# Версия для -X gotickets/internal/cli.Version
+VERSION?=$(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+LDFLAGS=-s -w -X gotickets/internal/cli.Version=$(VERSION)
+
 # Запуск приложения
 run:
 	go run cmd/gotickets/main.go
 
 # Сборка приложения
 build:
-	go build -o $(BINARY_NAME) cmd/gotickets/main.go
+	go build -ldflags "$(LDFLAGS)" -o $(BINARY_NAME) cmd/gotickets/main.go
 
 # Запуск всех тестов
 test:
